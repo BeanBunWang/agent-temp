@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -118,12 +119,22 @@ class OpenAICompatibleModel:
     The model must return JSON with fields: kind, name, arguments, content, rationale.
     """
 
-    def __init__(self) -> None:
-        self.base_url = os.environ.get("AGENT_MODEL_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-        self.api_key = os.environ.get("AGENT_MODEL_API_KEY", "")
-        self.model = os.environ.get("AGENT_MODEL_NAME", "gpt-4.1-mini")
+    def __init__(
+        self,
+        base_url_env: str = "AGENT_MODEL_BASE_URL",
+        api_key_env: str = "AGENT_MODEL_API_KEY",
+        model_env: str = "AGENT_MODEL_NAME",
+        default_base_url: str = "https://api.openai.com/v1",
+        default_model: str = "gpt-4.1-mini",
+        provider_label: str = "openai-compatible",
+    ) -> None:
+        self.base_url = os.environ.get(base_url_env, default_base_url).rstrip("/")
+        self.api_key = os.environ.get(api_key_env, "")
+        self.model = os.environ.get(model_env, default_model)
+        self.api_key_env = api_key_env
+        self.provider_label = provider_label
         if not self.api_key:
-            raise RuntimeError("AGENT_MODEL_API_KEY is required for openai-compatible provider")
+            raise RuntimeError(f"{api_key_env} is required for {provider_label} provider")
 
     def next_action(self, context: dict[str, Any]) -> ModelAction:
         prompt = (
@@ -134,7 +145,13 @@ class OpenAICompatibleModel:
         body = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": "Return a single valid JSON action. Respect tool and policy constraints."},
+                {
+                    "role": "system",
+                    "content": (
+                        "Return a single valid JSON object only. Do not use markdown. "
+                        "Respect tool policy, workspace boundaries, and the available action schema."
+                    ),
+                },
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0,
@@ -148,7 +165,7 @@ class OpenAICompatibleModel:
         with urllib.request.urlopen(request, timeout=30) as response:
             payload = json.loads(response.read().decode("utf-8"))
         raw = payload["choices"][0]["message"]["content"]
-        data = json.loads(raw)
+        data = parse_action_json(raw)
         return ModelAction(
             str(data.get("kind", "")),
             str(data.get("name", "")),
@@ -158,9 +175,40 @@ class OpenAICompatibleModel:
         )
 
 
+class DeepSeekModel(OpenAICompatibleModel):
+    def __init__(self) -> None:
+        super().__init__(
+            base_url_env="DEEPSEEK_BASE_URL",
+            api_key_env="DEEPSEEK_API_KEY",
+            model_env="DEEPSEEK_MODEL",
+            default_base_url="https://api.deepseek.com",
+            default_model="deepseek-chat",
+            provider_label="deepseek",
+        )
+
+
+def parse_action_json(raw: str) -> dict[str, Any]:
+    text = raw.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+        if not match:
+            raise
+        data = json.loads(match.group(0))
+    if not isinstance(data, dict):
+        raise ValueError("model action JSON must be an object")
+    return data
+
+
 def make_provider(name: str) -> ModelProvider:
     if name == "mock":
         return MockModel()
     if name == "openai-compatible":
         return OpenAICompatibleModel()
+    if name == "deepseek":
+        return DeepSeekModel()
     raise ValueError(f"unknown model provider: {name}")

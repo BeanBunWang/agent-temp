@@ -71,6 +71,26 @@ agent run \
 
 `AGENT_MODEL_API_KEY` 不会写入 trace。
 
+### DeepSeek
+
+DeepSeek 也是 OpenAI-compatible provider，但项目提供了单独入口，方便使用 `DEEPSEEK_*` 环境变量：
+
+```bash
+export DEEPSEEK_BASE_URL="https://api.deepseek.com"
+export DEEPSEEK_API_KEY="..."
+export DEEPSEEK_MODEL="deepseek-v4-pro"
+
+agent run \
+  --model-provider deepseek \
+  --task "读取 data 目录下的文档并生成报告" \
+  --workspace ./examples/workspace \
+  --trace ./trace-deepseek.json
+```
+
+`DEEPSEEK_TIMELINE_MODEL` 暂不参与当前 CLI 调度；它保留在 `.env.example` 中，作为后续多模型路由或轻量任务模型的配置位。
+
+不要把真实 key 写进代码、README、trace 或提交历史。建议将真实 key 放在本地 shell、direnv、1Password 或 CI secrets 中。
+
 ## 支持的 Tool
 
 - `read_file`：读取 workspace 内文件，限制结果大小，超大结果截断并记录 metadata。
@@ -107,7 +127,7 @@ Skill 内容被视为不可信流程知识，不能绕过工具权限和 workspa
 - `tool_call_started` / `tool_call_completed`
 - `boundary`，例如高风险 shell 拒绝、预算不足、工具失败
 
-示例 trace `examples/traces/compression_trace.json` 包含工具调用、skill 加载、压缩触发和高风险命令拒绝。
+示例 trace `examples/traces/compression_trace.json` 使用默认 `mock` provider 生成，包含工具调用、skill 加载、压缩触发和高风险命令拒绝。这样没有 API key 的评审方也能复现；真实模型可用上面的 DeepSeek 或 OpenAI-compatible 命令另行 smoke test。
 
 ## 架构取舍
 
@@ -130,4 +150,3 @@ git remote add origin git@github.com:<owner>/<repo>.git
 git branch -M main
 git push -u origin main
 ```
-

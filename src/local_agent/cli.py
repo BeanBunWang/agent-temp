@@ -15,7 +15,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--task", required=True, help="task for the agent")
     run.add_argument("--workspace", required=True, help="workspace directory")
     run.add_argument("--trace", required=True, help="trace JSON output path")
-    run.add_argument("--model-provider", default="mock", choices=["mock", "openai-compatible"])
+    run.add_argument("--model-provider", default="mock", choices=["mock", "openai-compatible", "deepseek"])
     run.add_argument("--max-steps", type=int, default=10)
     run.add_argument("--token-budget", type=int, default=8000)
     run.add_argument("--compression-threshold", type=float, default=0.70)
