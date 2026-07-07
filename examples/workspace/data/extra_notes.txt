@@ -1,0 +1,2 @@
+This small file exists so search_dir can discover multiple files.
+
