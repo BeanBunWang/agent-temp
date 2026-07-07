@@ -133,6 +133,7 @@ class OpenAICompatibleModel:
         self.model = os.environ.get(model_env, default_model)
         self.api_key_env = api_key_env
         self.provider_label = provider_label
+        self.timeout = int(os.environ.get("AGENT_MODEL_TIMEOUT", "90"))
         if not self.api_key:
             raise RuntimeError(f"{api_key_env} is required for {provider_label} provider")
 
@@ -162,7 +163,7 @@ class OpenAICompatibleModel:
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=self.timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
         raw = payload["choices"][0]["message"]["content"]
         data = parse_action_json(raw)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from .config import load_env_files
 from .model import make_provider
 from .runtime import AgentRuntime
 from .token_budget import TokenBudget
@@ -25,6 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "run":
+        load_env_files()
         provider = make_provider(args.model_provider)
         runtime = AgentRuntime(
             provider,

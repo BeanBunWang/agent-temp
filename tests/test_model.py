@@ -21,12 +21,14 @@ class ModelConfigTest(unittest.TestCase):
             "DEEPSEEK_BASE_URL": "https://api.deepseek.com",
             "DEEPSEEK_API_KEY": "test-secret",
             "DEEPSEEK_MODEL": "deepseek-v4-pro",
+            "AGENT_MODEL_TIMEOUT": "77",
         }
         with patch.dict(os.environ, env, clear=False):
             provider = DeepSeekModel()
         self.assertEqual(provider.base_url, "https://api.deepseek.com")
         self.assertEqual(provider.model, "deepseek-v4-pro")
         self.assertEqual(provider.api_key_env, "DEEPSEEK_API_KEY")
+        self.assertEqual(provider.timeout, 77)
 
 
 if __name__ == "__main__":
