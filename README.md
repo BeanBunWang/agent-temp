@@ -21,9 +21,16 @@ PYTHONPATH=src python -m local_agent run --help
 推荐使用 DeepSeek provider。把真实 key 放在本地 `.env` 或 `.env.local`，不要提交：
 
 ```bash
+cp .env.example .env
+# 然后编辑 .env，填入真实 DEEPSEEK_API_KEY
+```
+
+`.env` 示例内容：
+
+```bash
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_API_KEY=replace-with-your-key
-DEEPSEEK_MODEL=deepseek-v4-pro
+DEEPSEEK_MODEL=deepseek-v4-flash
 AGENT_MODEL_TIMEOUT=90
 ```
 
@@ -40,11 +47,8 @@ AGENT_MODEL_NAME=gpt-4.1-mini
 示例输入在：
 
 ```bash
-examples/workspace/data/largemodel_scene_task_mapping_1783071396.xlsx
 examples/workspace/data/largemodel_scene_task_mapping_sheet2.csv
 ```
-
-Excel 是原始示例文件；CSV 是从 `Sheet2` 导出的轻量运行输入，用于减少上下文体积和模型理解成本。
 
 示例任务：
 

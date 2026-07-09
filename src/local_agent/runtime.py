@@ -56,6 +56,9 @@ class AgentRuntime:
         auto_skills = self.skills.suggest_for_task(task)
         if auto_skills:
             self.trace.emit("skill_suggested", skills=auto_skills, reason="task trigger matched metadata")
+            for skill_name in auto_skills:
+                if skill_name not in state.loaded_skills:
+                    self._load_skill(state, skill_name)
 
         try:
             for step in range(self.max_steps):
@@ -99,6 +102,17 @@ class AgentRuntime:
 
                 if action.kind == "final":
                     state.final_answer = action.content
+                    if self._needs_report_artifact(state) and not self._has_report_artifact(state):
+                        self.trace.emit(
+                            "boundary",
+                            boundary="final_artifact_fallback",
+                            reason="model returned final response before writing requested report",
+                        )
+                        self._execute_tool(
+                            state,
+                            "write_file",
+                            {"path": "reports/agent_report.md", "content": action.content},
+                        )
                     state.terminal_reason = "final_response"
                     self.trace.emit("final_response", step=step, content=action.content)
                     break
@@ -210,3 +224,15 @@ class AgentRuntime:
         state.remember_result(result)
         self.trace.emit("tool_call_completed", step=state.step, result=result.as_dict())
         return result
+
+    def _needs_report_artifact(self, state: RunState) -> bool:
+        return "报告" in state.task or "report" in state.task.lower()
+
+    def _has_report_artifact(self, state: RunState) -> bool:
+        for result in state.important_results:
+            if result.get("tool") != "write_file" or result.get("status") != "success":
+                continue
+            data = result.get("structured_data", {})
+            if data.get("path") == "reports/agent_report.md":
+                return True
+        return False
