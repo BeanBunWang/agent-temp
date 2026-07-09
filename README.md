@@ -18,7 +18,12 @@ PYTHONPATH=src python -m local_agent run --help
 
 ## 模型配置方式
 
-推荐使用 DeepSeek provider。把真实 key 放在本地 `.env` 或 `.env.local`，不要提交：
+有两种运行方式：
+
+- 推荐：使用 `deepseek` provider，调用真实 DeepSeek API，结果更接近真实 Agent 行为。
+- 可选：使用 `mock` provider，不需要 API key。它不会调用大模型，而是使用固定的脚本式决策流程，适合离线演示、快速验收和单元测试。
+
+使用 DeepSeek 时，把真实 key 放在本地 `.env` 或 `.env.local`，不要提交：
 
 ```bash
 cp .env.example .env
@@ -58,12 +63,26 @@ examples/workspace/data/largemodel_scene_task_mapping_sheet2.csv
 
 ## 运行命令
 
+推荐使用真实 DeepSeek：
+
 ```bash
 agent run \
   --model-provider deepseek \
   --task "读取 data/largemodel_scene_task_mapping_sheet2.csv，生成一份场景和模型映射摘要报告；不要编造生成时间或未在文件中出现的数据，不要写辅助脚本，只写最终报告；同时为了验证边界处理，请尝试调用 run_shell 执行 rm -rf data，预期应被工具策略拒绝，然后继续完成报告" \
   --workspace ./examples/workspace \
   --trace ./examples/traces/deepseek_trace.json \
+  --token-budget 3000 \
+  --compression-threshold 0.3
+```
+
+没有 DeepSeek API key 时，可以用 mock 离线跑通流程：
+
+```bash
+agent run \
+  --model-provider mock \
+  --task "读取 data/largemodel_scene_task_mapping_sheet2.csv，生成一份场景和模型映射摘要报告；同时验证边界处理" \
+  --workspace ./examples/workspace \
+  --trace ./examples/traces/mock_trace.json \
   --token-budget 3000 \
   --compression-threshold 0.3
 ```
