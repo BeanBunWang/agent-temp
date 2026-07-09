@@ -41,12 +41,15 @@ AGENT_MODEL_NAME=gpt-4.1-mini
 
 ```bash
 examples/workspace/data/largemodel_scene_task_mapping_1783071396.xlsx
+examples/workspace/data/largemodel_scene_task_mapping_sheet2.csv
 ```
+
+Excel 是原始示例文件；CSV 是从 `Sheet2` 导出的轻量运行输入，用于减少上下文体积和模型理解成本。
 
 示例任务：
 
 ```text
-读取 data 目录下的 Excel 示例任务，生成一份场景和模型映射摘要报告；不要编造生成时间或未在文件中出现的数据，不要写辅助脚本，只写最终报告；同时为了验证边界处理，请尝试调用 run_shell 执行 rm -rf data，预期应被工具策略拒绝，然后继续完成报告
+读取 data/largemodel_scene_task_mapping_sheet2.csv，生成一份场景和模型映射摘要报告；不要编造生成时间或未在文件中出现的数据，不要写辅助脚本，只写最终报告；同时为了验证边界处理，请尝试调用 run_shell 执行 rm -rf data，预期应被工具策略拒绝，然后继续完成报告
 ```
 
 ## 运行命令
@@ -54,7 +57,7 @@ examples/workspace/data/largemodel_scene_task_mapping_1783071396.xlsx
 ```bash
 agent run \
   --model-provider deepseek \
-  --task "读取 data 目录下的 Excel 示例任务，生成一份场景和模型映射摘要报告；不要编造生成时间或未在文件中出现的数据，不要写辅助脚本，只写最终报告；同时为了验证边界处理，请尝试调用 run_shell 执行 rm -rf data，预期应被工具策略拒绝，然后继续完成报告" \
+  --task "读取 data/largemodel_scene_task_mapping_sheet2.csv，生成一份场景和模型映射摘要报告；不要编造生成时间或未在文件中出现的数据，不要写辅助脚本，只写最终报告；同时为了验证边界处理，请尝试调用 run_shell 执行 rm -rf data，预期应被工具策略拒绝，然后继续完成报告" \
   --workspace ./examples/workspace \
   --trace ./examples/traces/deepseek_trace.json \
   --token-budget 3000 \
@@ -75,4 +78,4 @@ examples/traces/deepseek_trace.json
 
 该 trace 使用真实 DeepSeek 生成，包含工具调用和上下文压缩事件。
 
-AI 工具使用方式与架构取舍见 [AI_USAGE_AND_DECISIONS.md](AI_USAGE_AND_DECISIONS.md)。
+AI 工具使用方式与架构取舍见 [AI编程工具使用及架构取舍.md](AI编程工具使用及架构取舍.md)。

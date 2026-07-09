@@ -53,7 +53,7 @@ class MockModel:
             return ModelAction(
                 "tool",
                 "read_file",
-                {"path": "data/largemodel_scene_task_mapping_1783071396.xlsx"},
+                {"path": "data/largemodel_scene_task_mapping_sheet2.csv"},
                 rationale="Read the main source document.",
             )
         if step == 3:

@@ -51,7 +51,7 @@ class ToolExecutor:
         return result
 
     def _read_file(self, call_id: str, arguments: dict[str, Any]) -> ToolResult:
-        path = resolve_workspace_path(self.workspace, str(arguments.get("path", "")))
+        path = resolve_workspace_path(self.workspace, str(path_argument(arguments)))
         if not path.is_file():
             return ToolResult(call_id, "read_file", "error", f"file not found: {path}", retryable=False)
         if path.suffix.lower() == ".xlsx":
@@ -74,7 +74,7 @@ class ToolExecutor:
         )
 
     def _write_file(self, call_id: str, arguments: dict[str, Any]) -> ToolResult:
-        path = resolve_workspace_path(self.workspace, str(arguments.get("path", "")))
+        path = resolve_workspace_path(self.workspace, str(path_argument(arguments)))
         content = str(arguments.get("content", ""))
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
@@ -230,3 +230,10 @@ def column_index(reference: str) -> int:
     for char in match.group(1):
         number = number * 26 + ord(char) - ord("A") + 1
     return number - 1
+
+
+def path_argument(arguments: dict[str, Any]) -> str:
+    for key in ("path", "file_path", "filepath", "filename"):
+        if arguments.get(key):
+            return str(arguments[key])
+    return ""

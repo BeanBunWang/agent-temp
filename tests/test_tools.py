@@ -75,6 +75,14 @@ class ToolExecutorTest(unittest.TestCase):
             self.assertTrue(result.structured_data["truncated"])
             self.assertIn("truncated", result.content)
 
+    def test_read_file_accepts_common_path_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "input.csv").write_text("a,b\n1,2\n", encoding="utf-8")
+            tools = ToolExecutor(Path(tmp))
+            result = tools.execute("read_file", {"file_path": "input.csv"})
+            self.assertEqual(result.status, "success")
+            self.assertIn("a,b", result.content)
+
     def test_xlsx_preview_is_textual(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, "sample.xlsx")
