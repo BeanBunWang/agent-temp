@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import time
+import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -13,6 +16,10 @@ from .schema import ToolResult
 
 MAX_FILE_CHARS = 4000
 MAX_SHELL_CHARS = 3000
+XLSX_NS = {
+    "m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+    "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+}
 
 
 class ToolExecutor:
@@ -47,17 +54,22 @@ class ToolExecutor:
         path = resolve_workspace_path(self.workspace, str(arguments.get("path", "")))
         if not path.is_file():
             return ToolResult(call_id, "read_file", "error", f"file not found: {path}", retryable=False)
-        text = path.read_text(encoding="utf-8", errors="replace")
+        if path.suffix.lower() == ".xlsx":
+            text, metadata = read_xlsx_preview(path)
+        else:
+            text = path.read_text(encoding="utf-8", errors="replace")
+            metadata = {"file_type": "text"}
         truncated = len(text) > MAX_FILE_CHARS
         content = text[:MAX_FILE_CHARS]
         if truncated:
             content += "\n...[truncated: file result exceeded limit]"
+        metadata.update({"path": str(path.relative_to(self.workspace)), "chars": len(text), "truncated": truncated})
         return ToolResult(
             call_id,
             "read_file",
             "success",
             content,
-            structured_data={"path": str(path.relative_to(self.workspace)), "chars": len(text), "truncated": truncated},
+            structured_data=metadata,
             evidence={"path": str(path)},
         )
 
@@ -151,3 +163,70 @@ class ToolExecutor:
             evidence={"cwd": str(self.workspace)},
             retryable=completed.returncode != 0,
         )
+
+
+def read_xlsx_preview(path: Path, max_rows_per_sheet: int = 12) -> tuple[str, dict[str, Any]]:
+    shared_strings: list[str] = []
+    sheet_outputs: list[str] = []
+    sheet_names: list[str] = []
+    with zipfile.ZipFile(path) as workbook:
+        names = workbook.namelist()
+        if "xl/sharedStrings.xml" in names:
+            shared_root = ET.fromstring(workbook.read("xl/sharedStrings.xml"))
+            for item in shared_root.findall(".//m:si", XLSX_NS):
+                shared_strings.append("".join(t.text or "" for t in item.findall(".//m:t", XLSX_NS)))
+
+        workbook_root = ET.fromstring(workbook.read("xl/workbook.xml"))
+        rel_root = ET.fromstring(workbook.read("xl/_rels/workbook.xml.rels"))
+        rels = {rel.attrib["Id"]: rel.attrib["Target"] for rel in rel_root}
+
+        for sheet in workbook_root.findall(".//m:sheet", XLSX_NS):
+            sheet_name = sheet.attrib.get("name", "sheet")
+            relation_id = sheet.attrib.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id", "")
+            target = rels.get(relation_id, "")
+            if not target:
+                continue
+            sheet_path = "xl/" + target.lstrip("/")
+            root = ET.fromstring(workbook.read(sheet_path))
+            rows: list[list[str]] = []
+            for row in root.findall(".//m:sheetData/m:row", XLSX_NS)[:max_rows_per_sheet]:
+                rows.append(read_xlsx_row(row, shared_strings))
+            sheet_names.append(sheet_name)
+            rendered_rows = [" | ".join(row) for row in rows]
+            sheet_outputs.append(f"## Sheet: {sheet_name}\n" + "\n".join(rendered_rows))
+
+    text = f"# XLSX Preview: {path.name}\n\n" + "\n\n".join(sheet_outputs)
+    return text, {"file_type": "xlsx", "sheets": sheet_names}
+
+
+def read_xlsx_row(row: ET.Element, shared_strings: list[str]) -> list[str]:
+    cells_by_index: dict[int, str] = {}
+    for cell in row.findall("m:c", XLSX_NS):
+        ref = cell.attrib.get("r", "")
+        index = column_index(ref)
+        cells_by_index[index] = read_xlsx_cell(cell, shared_strings)
+    if not cells_by_index:
+        return []
+    return [cells_by_index.get(index, "") for index in range(max(cells_by_index) + 1)]
+
+
+def read_xlsx_cell(cell: ET.Element, shared_strings: list[str]) -> str:
+    if cell.attrib.get("t") == "inlineStr":
+        return "".join(t.text or "" for t in cell.findall(".//m:t", XLSX_NS))
+    value = cell.find("m:v", XLSX_NS)
+    text = "" if value is None else value.text or ""
+    if cell.attrib.get("t") == "s" and text.isdigit():
+        index = int(text)
+        if 0 <= index < len(shared_strings):
+            return shared_strings[index]
+    return text
+
+
+def column_index(reference: str) -> int:
+    match = re.match(r"([A-Z]+)", reference)
+    if not match:
+        return 0
+    number = 0
+    for char in match.group(1):
+        number = number * 26 + ord(char) - ord("A") + 1
+    return number - 1

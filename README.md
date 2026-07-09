@@ -1,9 +1,8 @@
 # Local Agent
 
-一个小型但完整的本地 CLI Agent 示例。它不追求大而全，重点展示 Agent Runtime 的关键边界：
-显式循环、结构化工具协议、渐进式 skill 加载、token 预算与压缩、受限 shell、安全边界和可复盘 trace。
+小型命令行 Agent：支持文件读取、文件写入、目录检索、受限 shell、按需 skill 加载、token 预算压缩和运行 trace。
 
-## 安装
+## 安装方式
 
 ```bash
 python3 -m venv .venv
@@ -11,149 +10,69 @@ python3 -m venv .venv
 python -m pip install -e .
 ```
 
-也可以不安装，直接运行：
+不安装也可以直接运行：
 
 ```bash
-PYTHONPATH=src python -m local_agent run \
-  --model-provider deepseek \
-  --task "读取 data 目录下的文档并生成报告；同时为了验证边界处理，请尝试调用 run_shell 执行 rm -rf data，预期应被工具策略拒绝，然后继续完成报告" \
-  --workspace ./examples/workspace \
-  --trace ./examples/traces/deepseek_trace.json \
-  --token-budget 3000 \
-  --compression-threshold 0.3
+PYTHONPATH=src python -m local_agent run --help
+```
+
+## 模型配置方式
+
+推荐使用 DeepSeek provider。把真实 key 放在本地 `.env` 或 `.env.local`，不要提交：
+
+```bash
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_API_KEY=replace-with-your-key
+DEEPSEEK_MODEL=deepseek-v4-pro
+AGENT_MODEL_TIMEOUT=90
+```
+
+也支持通用 OpenAI-compatible 配置：
+
+```bash
+AGENT_MODEL_BASE_URL=https://api.openai.com/v1
+AGENT_MODEL_API_KEY=replace-with-your-key
+AGENT_MODEL_NAME=gpt-4.1-mini
+```
+
+## 示例任务
+
+示例输入在：
+
+```bash
+examples/workspace/data/largemodel_scene_task_mapping_1783071396.xlsx
+```
+
+示例任务：
+
+```text
+读取 data 目录下的 Excel 示例任务，生成一份场景和模型映射摘要报告；不要编造生成时间或未在文件中出现的数据，不要写辅助脚本，只写最终报告；同时为了验证边界处理，请尝试调用 run_shell 执行 rm -rf data，预期应被工具策略拒绝，然后继续完成报告
 ```
 
 ## 运行命令
 
-安装后入口为：
-
 ```bash
 agent run \
   --model-provider deepseek \
-  --task "读取 data 目录下的文档并生成报告；同时为了验证边界处理，请尝试调用 run_shell 执行 rm -rf data，预期应被工具策略拒绝，然后继续完成报告" \
+  --task "读取 data 目录下的 Excel 示例任务，生成一份场景和模型映射摘要报告；不要编造生成时间或未在文件中出现的数据，不要写辅助脚本，只写最终报告；同时为了验证边界处理，请尝试调用 run_shell 执行 rm -rf data，预期应被工具策略拒绝，然后继续完成报告" \
   --workspace ./examples/workspace \
   --trace ./examples/traces/deepseek_trace.json \
   --token-budget 3000 \
   --compression-threshold 0.3
 ```
 
-输出报告位于：
+输出报告：
 
 ```bash
 examples/workspace/reports/agent_report.md
 ```
 
-trace 位于：
+完整 trace 样例：
 
 ```bash
 examples/traces/deepseek_trace.json
 ```
 
-## 模型配置
+该 trace 使用真实 DeepSeek 生成，包含工具调用和上下文压缩事件。
 
-推荐使用真实模型 provider `deepseek`。默认 provider 仍是 `mock`，只作为没有 API key 时的离线兜底和单元测试路径。
-
-如需接入 OpenAI-compatible Chat Completions API：
-
-```bash
-export AGENT_MODEL_BASE_URL="https://api.openai.com/v1"
-export AGENT_MODEL_API_KEY="..."
-export AGENT_MODEL_NAME="gpt-4.1-mini"
-
-agent run \
-  --model-provider openai-compatible \
-  --task "读取 data 目录下的文档并生成报告" \
-  --workspace ./examples/workspace \
-  --trace ./trace.json
-```
-
-模型必须返回 JSON action：
-
-```json
-{"kind":"tool","name":"search_dir","arguments":{"path":"data"},"content":"","rationale":"..."}
-```
-
-`AGENT_MODEL_API_KEY` 不会写入 trace。
-
-### DeepSeek
-
-DeepSeek 也是 OpenAI-compatible provider，但项目提供了单独入口，方便使用 `DEEPSEEK_*` 环境变量：
-
-```bash
-export DEEPSEEK_BASE_URL="https://api.deepseek.com"
-export DEEPSEEK_API_KEY="..."
-export DEEPSEEK_MODEL="deepseek-v4-pro"
-export AGENT_MODEL_TIMEOUT="90"
-
-agent run \
-  --model-provider deepseek \
-  --task "读取 data 目录下的文档并生成报告" \
-  --workspace ./examples/workspace \
-  --trace ./trace-deepseek.json
-```
-
-也可以把这些变量写入本地 `.env` 或 `.env.local`；CLI 会自动读取，但这两个文件已在 `.gitignore` 中排除。
-
-`DEEPSEEK_TIMELINE_MODEL` 暂不参与当前 CLI 调度；它保留在 `.env.example` 中，作为后续多模型路由或轻量任务模型的配置位。
-
-不要把真实 key 写进代码、README、trace 或提交历史。建议将真实 key 放在本地 shell、direnv、1Password 或 CI secrets 中。
-
-## 支持的 Tool
-
-- `read_file`：读取 workspace 内文件，限制结果大小，超大结果截断并记录 metadata。
-- `write_file`：写入 workspace 内文件，自动创建父目录，拒绝路径穿越。
-- `search_dir`：按文件名或内容关键词检索目录，限制深度和返回条数。
-- `run_shell`：受限 shell，工作目录固定在 workspace，命令 allowlist，超时，拒绝高风险命令和 shell 操作符。
-
-## Skill 加载
-
-Skill 存放在 workspace 的 `skills/<name>/SKILL.md`。启动时只读取元数据：
-
-```yaml
----
-name: report-writer
-description: Generate a short evidence-backed markdown report from local files.
-triggers: 读取,报告,文档,report
-tools: read_file,write_file,search_dir,run_shell
-risk: low
----
-```
-
-正文只有在模型显式选择 `load_skill`，或任务命中触发词后需要使用时才进入上下文。
-Skill 内容被视为不可信流程知识，不能绕过工具权限和 workspace 边界。
-
-## Trace 内容
-
-每次运行导出 JSON trace，包含：
-
-- `run_started` / `run_completed`
-- `token_estimate`
-- `compression_triggered`
-- `model_call_started` / `model_call_completed`
-- `skill_loaded`
-- `tool_call_started` / `tool_call_completed`
-- `boundary`，例如高风险 shell 拒绝、预算不足、工具失败
-
-示例 trace `examples/traces/deepseek_trace.json` 使用真实 DeepSeek provider 生成，包含工具调用、skill 加载、压缩触发和高风险命令拒绝。trace 不包含 API key。
-
-## 架构取舍
-
-这个项目刻意选择单 Agent Runtime，而不是多 Agent 或大型平台。原因是题目关注的是小型但完整的核心闭环：
-
-- 真实状态是结构化 `RunState` 和 append-only trace，模型上下文只是投影。
-- Tool 使用统一 `ToolResult`，保证失败、拒绝、超时也能进入循环和 trace。
-- Skill 是渐进式流程知识，避免启动时把所有文档塞进上下文。
-- 压缩只替换上下文表示，不丢失目标、约束、进度、重要工具结果和未完成事项。
-- 长期记忆、提醒创建、MCP、多 Agent 先不实现，避免扩大权限、审批和恢复复杂度。
-
-更多说明见 [ARCHITECTURE.md](ARCHITECTURE.md)。
-
-## GitHub 推送
-
-当前交付以本地 git 仓库为准。如果需要推送到 GitHub：
-
-```bash
-git remote add origin git@github.com:<owner>/<repo>.git
-git branch -M main
-git push -u origin main
-```
+AI 工具使用方式与架构取舍见 [AI_USAGE_AND_DECISIONS.md](AI_USAGE_AND_DECISIONS.md)。
